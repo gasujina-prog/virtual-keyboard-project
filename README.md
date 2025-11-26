@@ -21,6 +21,5 @@ request - 클라이언트-Flask 서버로 설정데이터를 전송ㆍ수신을 
 
 위 라이브러리는 프로젝트에 있는 requements.txt 에 있으며
 터미널에서 cd 명령어로 해당 .txt 파일이 있는 위치로 이동 후 다음 명령어를 입력
+
 pip install -r requirements.txt ※ 터미널 위치에 해당 파일이 있으면 cd 명령어 생략하고 바로 pip 명령어 입력
-
-
