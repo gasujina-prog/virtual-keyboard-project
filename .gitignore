@@ -205,3 +205,34 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Virtual Environment
+.venv/
+env/
+venv/
+
+# Python compiled files
+__pycache__/
+*.pyc
+
+# Distribution and Packaging
+dist/
+build/
+*.egg-info/
+
+# IDE files (PyCharm specific)
+.idea/
+*.iws
+
+# Data and Logs
+*.db
+*.sqlite3
+*.log
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# OpenCV/MediaPipe temporary files (if any are saved)
+*.jpg
+*.png
