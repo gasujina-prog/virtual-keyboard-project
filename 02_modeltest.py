@@ -18,7 +18,7 @@ while True:
         break
 
     # 모델 추론
-    results = model(frame, imgsz=640, conf=0.5)[0]  # conf 조절 가능 (기본 0.25~0.5)
+    results = model(frame, imgsz=640, conf=0.5, device='cuda:0')[0]  # conf 조절 가능 (기본 0.25~0.5)
 
     # 검출된 객체 그리기
     for box in results.boxes:
