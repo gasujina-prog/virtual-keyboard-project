@@ -1,6 +1,13 @@
 import os
 import shutil
 import random
+# 먼저 기존 torch가 있다면 삭제 (충돌 방지)
+#pip uninstall torch torchvision torchaudio -y
+
+# CUDA 12.1 버전용 PyTorch 설치 (추천)
+#pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+from ultralytics import YOLO
+import torch
 
 # 원본 캡쳐 폴더
 SRC_IMG_DIR = "fingercapture/image"
@@ -135,6 +142,29 @@ def main():
     copy_pairs(val_pairs, DST_IMG_VAL,   DST_LBL_VAL)
 
     print(f"train: {len(train_pairs)}개, val: {len(val_pairs)}개 복사 완료.")
+
+    # CUDA GPU 사용해서 훈련하기
+    # 2. 모델 불러오기
+    # yolov8n.pt (nano): 가장 가볍고 빠름 / yolov8s.pt (small), yolov8m.pt (medium) 등 선택 가능
+    # 처음 실행 시 가중치 파일을 자동으로 다운로드합니다.
+    model = YOLO('yolov8n.pt')
+
+    # 3. 모델 훈련
+    results = model.train(
+        data='data.yaml',  # 앞서 만든 데이터 설정 파일
+        epochs=30,  # 전체 데이터셋 반복 학습 횟수
+        imgsz=640,  # 이미지 크기 (보통 640 사용)
+        batch=16,  # 배치 크기 (GPU 메모리에 맞춰 조절, 메모리 부족 시 줄이세요)
+        device=0,  # ★ GPU 사용 설정 (0, 1, 2... 또는 [0, 1])
+        workers=4,  # 데이터 로딩에 사용할 CPU 프로세스 수 (Windows라면 0 권장)
+        project='finger_project',  # 결과가 저장될 프로젝트 폴더 이름
+        name='train_result',  # 결과가 저장될 하위 폴더 이름
+        exist_ok=True,  # 폴더가 있어도 덮어쓰기 가능 여부
+        patience=10,  # 성능 향상이 없으면 10 에포크 뒤 조기 종료
+        verbose=True
+    )
+
+    print("훈련 완료!")
 
 if __name__ == "__main__":
     main()
