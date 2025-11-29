@@ -35,7 +35,7 @@ if not cap.isOpened():
 print("# ==========================================\n"
       "t키: 영상 저장모드 변경\ns키: 수동 저장\nq: 종료\n"
       "# ==========================================")
-
+num = 0 #몇번째 사진
 while True:
     ret, orig_frame = cap.read()
     if not ret:
@@ -102,7 +102,7 @@ while True:
         #################################
         # 저장되는 파일 이름, 취향껏 수정
         #################################
-        filename = f"jun_{int(current_time)}.jpg"
+        filename = f"high_{int(current_time)}.jpg"
         img_path = os.path.join(image_dir, filename)
         label_path = os.path.join(label_dir, filename.replace(".jpg", ".txt"))
         result_path = os.path.join(result_dir, filename)
@@ -126,9 +126,11 @@ while True:
                         else:
                             f.write(f"1 {cx:.6f} {cy:.6f} {bbox_w:.6f} {bbox_h:.6f}\n") # 엄지 1번
 
-        # 이미지 저장
+        # 이미지 저장 + 몇 번째 저장 사진인지 확인
         cv2.imwrite(result_path, vis_frame)
         cv2.imwrite(img_path, orig_frame)
+        num+=1
+        print(f"{num}번째 사진")
         print(f"[+] 저장 완료 → {img_path}")
         print(f"    라벨   → {label_path}")
         last_save_time = current_time
