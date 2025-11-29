@@ -3,6 +3,13 @@ import mediapipe as mp
 import time
 import os
 
+# ==========================================
+# ★ 저장 모드 설정 (여기서 True/False 변경) ★
+# True: 영상 저장 모드 (자동 저장)
+# False: 카메라 송출 모드 (저장 안 함)
+# ==========================================
+SAVE_MODE = False
+
 # 저장 주기
 save_interval_sec = 1
 last_save_time = 0
@@ -25,7 +32,9 @@ cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     raise IOError("카메라를 열 수 없습니다. 연결 상태 확인하세요.")
 
-print("s 키 누르면 수동 저장 가능, q로 종료")
+print("# ==========================================\n"
+      "t키: 영상 저장모드 변경\ns키: 수동 저장\nq: 종료\n"
+      "# ==========================================")
 
 while True:
     ret, orig_frame = cap.read()
@@ -45,14 +54,11 @@ while True:
                 lm = hand_landmarks.landmark[idx]
                 cx, cy = int(lm.x * w), int(lm.y * h)
 
-
-
                 ################################################
                 # bbox margin 설정
                 # 카메라 높이에 따라서 손가락 사이즈 달라짐,
                 # 손가락 (손톱 포함?) 끝 마디가 반이상 들어오도록 조정
                 ################################################
-
                 bbox_size = 40  # 박스 사이즈 px 단위
                 x1 = max(cx - bbox_size // 2, 0)
                 y1 = max(cy - bbox_size // 2, 0)
@@ -74,10 +80,25 @@ while True:
     current_time = time.time()
     key = cv2.waitKey(1) & 0xFF
 
-    # 자동 저장 & 수동 저장
-    # s 로 현재 저장
-    if current_time - last_save_time > save_interval_sec or key == ord('s'):
+    # 't' 키를 누르면 실행 도중 모드 변경 가능
+    if key == ord('t'):
+        SAVE_MODE = not SAVE_MODE
+        print(f"모드 변경됨: {'[저장 ON]' if SAVE_MODE else '[저장 OFF]'}")
 
+    # ====================================================
+    # 저장 로직
+    # 조건 1: SAVE_MODE가 True이고, 지정된 시간이 지났을 때 (자동 저장)
+    # 조건 2: 's' 키를 눌렀을 때 (수동 저장 - 모드 상관없이 동작)
+    # ====================================================
+    should_save = False
+
+    if SAVE_MODE and (current_time - last_save_time > save_interval_sec):
+        should_save = True
+
+    if key == ord('s'):
+        should_save = True
+
+    if should_save:
         #################################
         # 저장되는 파일 이름, 취향껏 수정
         #################################
