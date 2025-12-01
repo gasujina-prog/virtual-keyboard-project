@@ -2,6 +2,7 @@ import cv2
 import mediapipe as mp
 import time
 import os
+import numpy as np
 
 # ==========================================
 # ★ 저장 모드 설정 (여기서 True/False 변경) ★
@@ -11,7 +12,7 @@ import os
 SAVE_MODE = False
 
 # 저장 주기
-save_interval_sec = 1
+save_interval_sec = 0.3
 last_save_time = 0
 
 # 저장 폴더 구성
@@ -26,6 +27,47 @@ os.makedirs(result_dir, exist_ok=True)
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.5)
 mp_drawing = mp.solutions.drawing_utils
+
+def is_thumb_folded(hand_landmarks):
+    """
+    엄지가 손바닥 쪽으로 많이 접혀 있으면 True를 리턴.
+    (엄지 MCP(2) - IP(3) - TIP(4) 각도로 판단)
+    """
+    lm = hand_landmarks.landmark
+
+    p1 = np.array([lm[2].x, lm[2].y])  # MCP
+    p2 = np.array([lm[3].x, lm[3].y])  # IP
+    p3 = np.array([lm[4].x, lm[4].y])  # TIP
+
+    v1 = p1 - p2
+    v2 = p3 - p2
+
+    cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-6)
+    cos_angle = np.clip(cos_angle, -1.0, 1.0)
+    angle = np.degrees(np.arccos(cos_angle))
+
+    # 엄지가 쭉 펴져 있으면 angle이 170~180도 근처,
+    # 많이 접히면 120도 이하로 내려간다고 보고 threshold 설정
+    return angle < 160
+
+def is_thumb_folded_by_distance(hand_landmarks):
+    """
+    점 4 (엄지 끝) 이 점 5 (검지 루트, 손바닥 근처) 와 가까우면 True
+    """
+    lm = hand_landmarks.landmark
+
+    # TIP (엄지 끝) & Point 5 (검지 시작, 손바닥 쪽)
+    p4 = np.array([lm[4].x, lm[4].y])
+    p5 = np.array([lm[5].x, lm[5].y])
+    p6 = np.array([lm[6].x, lm[6].y])
+
+    dist1 = np.linalg.norm(p4 - p5)
+    dist2 = np.linalg.norm(p4 - p6)
+
+    dist = min(dist1, dist2)
+
+    # 경험적으로 0.08~0.1 아래면 손바닥으로 많이 접힌 상태
+    return dist < 0.057
 
 # 카메라 연결
 cap = cv2.VideoCapture(0)
@@ -49,8 +91,14 @@ while True:
 
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
+            #thumb_folded = is_thumb_folded(hand_landmarks)
+            thumb_folded = is_thumb_folded_by_distance(hand_landmarks)
             # 4번 엄지, 나머지 손가락
             for idx in [4,8,12,16,20]:
+
+                if idx == 4 and thumb_folded:
+                    continue
+
                 lm = hand_landmarks.landmark[idx]
                 cx, cy = int(lm.x * w), int(lm.y * h)
 
@@ -59,7 +107,7 @@ while True:
                 # 카메라 높이에 따라서 손가락 사이즈 달라짐,
                 # 손가락 (손톱 포함?) 끝 마디가 반이상 들어오도록 조정
                 ################################################
-                bbox_size = 40  # 박스 사이즈 px 단위
+                bbox_size = 26  # 박스 사이즈 px 단위
                 x1 = max(cx - bbox_size // 2, 0)
                 y1 = max(cy - bbox_size // 2, 0)
                 x2 = min(cx + bbox_size // 2, w)
