@@ -69,6 +69,20 @@ def is_thumb_folded_by_distance(hand_landmarks):
     # 경험적으로 0.08~0.1 아래면 손바닥으로 많이 접힌 상태
     return dist < 0.057
 
+def is_fingers_folded_by_distance(hand_landmarks):
+    lm = hand_landmarks.landmark
+    p0 = np.array([lm[0].x, lm[0].y])  # 손목 기준
+
+    finger_indices = [8, 12, 16, 20]   # 검지, 중지, 약지, 새끼
+    folded = {}  # 결과 저장용 딕셔너리
+
+    for i in finger_indices:
+        pi = np.array([lm[i].x, lm[i].y])
+        dist = np.linalg.norm(pi - p0)
+        folded[i] = dist < 0.33  # 각 손가락별 True/False 저장
+
+    return folded
+
 # 카메라 연결
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
@@ -93,12 +107,14 @@ while True:
         for hand_landmarks in results.multi_hand_landmarks:
             #thumb_folded = is_thumb_folded(hand_landmarks)
             thumb_folded = is_thumb_folded_by_distance(hand_landmarks)
+            finger_folded = is_fingers_folded_by_distance(hand_landmarks)
             # 4번 엄지, 나머지 손가락
             for idx in [4,8,12,16,20]:
 
                 if idx == 4 and thumb_folded:
                     continue
-
+                if idx != 4 and finger_folded[idx]:
+                    continue
                 lm = hand_landmarks.landmark[idx]
                 cx, cy = int(lm.x * w), int(lm.y * h)
 
@@ -159,8 +175,14 @@ while True:
         with open(label_path, "w") as f:
             if results.multi_hand_landmarks:
                 for hand_landmarks in results.multi_hand_landmarks:
+                    thumb_folded = is_thumb_folded_by_distance(hand_landmarks)
+                    finger_folded = is_fingers_folded_by_distance(hand_landmarks)
                     for idx in [4, 8, 12, 16, 20]:
                         lm = hand_landmarks.landmark[idx]
+                        if idx == 4 and thumb_folded:
+                            continue
+                        if idx != 4 and finger_folded[idx]:
+                            continue
                         cx, cy = lm.x, lm.y  # 이미 정규화 되어 있음 (0~1)
 
                         # 정규화 박스 크기 (40px 상대 비율)
