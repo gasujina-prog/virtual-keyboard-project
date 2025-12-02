@@ -12,7 +12,7 @@ import numpy as np
 SAVE_MODE = False
 
 # 저장 주기
-save_interval_sec = 0.3
+save_interval_sec = 1
 last_save_time = 0
 
 # 저장 폴더 구성
@@ -67,7 +67,7 @@ def is_thumb_folded_by_distance(hand_landmarks):
     dist = min(dist1, dist2)
 
     # 경험적으로 0.08~0.1 아래면 손바닥으로 많이 접힌 상태
-    return dist < 0.057
+    return dist < 0.0585
 
 def is_fingers_folded_by_distance(hand_landmarks):
     lm = hand_landmarks.landmark
@@ -79,7 +79,7 @@ def is_fingers_folded_by_distance(hand_landmarks):
     for i in finger_indices:
         pi = np.array([lm[i].x, lm[i].y])
         dist = np.linalg.norm(pi - p0)
-        folded[i] = dist < 0.33  # 각 손가락별 True/False 저장
+        folded[i] = dist < 0.315  # 각 손가락별 True/False 저장
 
     return folded
 

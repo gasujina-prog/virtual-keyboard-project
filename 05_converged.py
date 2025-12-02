@@ -8,12 +8,11 @@ from ultralytics import YOLO
 # ==============================
 CAMERA_INDEX = 0
 JSON_PATH = "kblayout.json"
-TEXTURE_PATH = "kblayout.png"   # 지금은 안 쓰지만 유지
-YOLO_WEIGHTS = "finger_project/train_result/weights/best.pt"  # 02_modeltest.py와 동일 경로
+YOLO_WEIGHTS = "finger_project/train_result/weights/best.pt"
 
-DRAW_KEY_BOXES = True   # 키 영역 디버그용
-YOLO_CONF = 0.5         # 신뢰도 threshold
-YOLO_DEVICE = "cuda:0"  # GPU 사용, 필요시 "cpu"로 변경
+DRAW_KEY_BOXES = True
+YOLO_CONF = 0.3         # 신뢰도 threshold
+YOLO_DEVICE = "cuda:0"
 
 # ==============================
 # 1. 키보드 JSON 로드
@@ -24,15 +23,17 @@ with open(JSON_PATH, "r", encoding="utf-8") as f:
 keys = kb_layout["keys"]
 
 # 키보드 정규화 전체 사각형 (0~1)
-# (03_keyboard_detecting.py와 동일 순서 유지) :contentReference[oaicite:2]{index=2}
+# 03_keyboard_detecting.py와 동일 순서 유지
 kb_quad = np.array([
-    [0.0, 0.0],  # BR (label은 틀렸지만, 이 순서에 맞춰 JSON/튜닝이 되어 있음)
+    [0.0, 0.0],  # BR (label은 틀렸지만 이 순서에 맞춰 튜닝됨)
     [1.0, 0.0],  # BL
     [1.0, 1.0],  # TL
     [0.0, 1.0],  # TR
 ], dtype=np.float32)
 
+
 def rotate_keys_180_inplace(keys_list):
+    """레이아웃을 180도 회전."""
     for key in keys_list:
         x = key["x"]
         y = key["y"]
@@ -41,44 +42,21 @@ def rotate_keys_180_inplace(keys_list):
         key["x"] = 1.0 - (x + w)
         key["y"] = 1.0 - (y + h)
 
-# 03번에서 이미 사용하던 대로 180도 회전 적용 :contentReference[oaicite:3]{index=3}
+
+# 03번에서 사용하던 대로 180도 회전 적용
 rotate_keys_180_inplace(keys)
 
-def find_key_at(kx, ky):
-    """정규화 좌표(kx, ky)가 포함되는 키 id 반환 (없으면 None)."""
-    for key in keys:
-        if (key["x"] <= kx <= key["x"] + key["w"] and
-            key["y"] <= ky <= key["y"] + key["h"]):
-            return key["id"]
-    return None
 
 # ==============================
-# 2. (옵션) 키보드 텍스처 이미지 로드
-# ==============================
-kb_img = cv2.imread(TEXTURE_PATH, cv2.IMREAD_UNCHANGED)
-if kb_img is None:
-    print(f"[경고] 키보드 텍스처 이미지를 찾을 수 없습니다: {TEXTURE_PATH}")
-else:
-    kb_img = cv2.rotate(kb_img, cv2.ROTATE_180)  # 03번 코드와 동일 회전
-
-kh, kw = kb_img.shape[:2] if kb_img is not None else (0, 0)
-
-texture_src_pts = np.array([
-    [0,   0  ],   # TL
-    [kw,  0  ],   # TR
-    [kw,  kh ],   # BR
-    [0,   kh ]    # BL
-], dtype=np.float32) if kb_img is not None else None
-
-# ==============================
-# 3. AprilTag 설정
+# 2. AprilTag 설정
 # ==============================
 aruco = cv2.aruco
 dictionary = aruco.getPredefinedDictionary(aruco.DICT_APRILTAG_25h9)
 parameters = aruco.DetectorParameters()
 
-def classify_four_tags(corners, ids):
 
+def classify_four_tags(corners, ids):
+    """4개의 태그를 화면 기준 TL/TR/BL/BR로 분류."""
     ids = np.array(ids).flatten()
     centers = []
 
@@ -104,25 +82,27 @@ def classify_four_tags(corners, ids):
     br_idx = int(bottom_two[1, 0])
 
     def corner_inner(idx, role):
+        # corners[idx]: [TL, TR, BR, BL]
         c = np.array(corners[idx]).reshape(-1, 2)
-        if role == 'top_left':
-            return c[3]   # BL
-        elif role == 'top_right':
-            return c[2]   # BR
-        elif role == 'bottom_right':
-            return c[1]   # TR
-        elif role == 'bottom_left':
-            return c[0]   # TL
+        if role == "top_left":
+            return c[3]  # BL
+        elif role == "top_right":
+            return c[2]  # BR
+        elif role == "bottom_right":
+            return c[1]  # TR
+        elif role == "bottom_left":
+            return c[0]  # TL
         else:
             return c.mean(axis=0)
 
     result = {
-        'top_left':      corner_inner(tl_idx, 'top_left'),
-        'top_right':     corner_inner(tr_idx, 'top_right'),
-        'bottom_left':   corner_inner(bl_idx, 'bottom_left'),
-        'bottom_right':  corner_inner(br_idx, 'bottom_right'),
+        "top_left": corner_inner(tl_idx, "top_left"),
+        "top_right": corner_inner(tr_idx, "top_right"),
+        "bottom_left": corner_inner(bl_idx, "bottom_left"),
+        "bottom_right": corner_inner(br_idx, "bottom_right"),
     }
     return result
+
 
 def draw_keyboard_quad(frame, quad, color=(0, 255, 0)):
     quad_int = quad.astype(int)
@@ -131,50 +111,56 @@ def draw_keyboard_quad(frame, quad, color=(0, 255, 0)):
         pt2 = tuple(quad_int[(i + 1) % 4])
         cv2.line(frame, pt1, pt2, color, 2)
 
+
+def select_key_by_center_or_nearest(kx, ky, keys):
+    """
+    kx, ky: 키보드 정규화 좌표 (0~1)
+    1) 이 점을 포함하는 키가 있으면 그 키 반환
+    2) 없으면, 중심이 가장 가까운 키를 반환
+    """
+    inside_key_id = None
+    nearest_id = None
+    nearest_d2 = 1e9
+
+    for key in keys:
+        x_min = key["x"]
+        y_min = key["y"]
+        x_max = key["x"] + key["w"]
+        y_max = key["y"] + key["h"]
+
+        # 안에 들어가면 저장
+        if x_min <= kx <= x_max and y_min <= ky <= y_max:
+            inside_key_id = key["id"]
+
+        # 가장 가까운 키(center distance)
+        cx = (x_min + x_max) / 2.0
+        cy = (y_min + y_max) / 2.0
+        d2 = (cx - kx) ** 2 + (cy - ky) ** 2
+        if d2 < nearest_d2:
+            nearest_d2 = d2
+            nearest_id = key["id"]
+
+    if inside_key_id is not None:
+        return inside_key_id
+    return nearest_id
+
+
 # ==============================
-# 4. YOLO 손가락 모델 로드 (02_modeltest.py 기반) :contentReference[oaicite:5]{index=5}
+# 3. YOLO 손가락 모델 로드
 # ==============================
 print("[INFO] Loading YOLO fingertip model...")
 model = YOLO(YOLO_WEIGHTS)
 
-def infer_fingers_from_model(frame_bgr):
-    """
-    YOLO 출력 → 손가락 중심 좌표 리스트로 변환.
-    cls 0: fingertip, cls 1: thumb (필요시 둘 다 사용 가능).
-    """
-    results = model(frame_bgr, imgsz=640, conf=YOLO_CONF, device=YOLO_DEVICE)[0]
-
-    fingers = []
-    for box in results.boxes:
-        cls = int(box.cls[0])
-        conf = float(box.conf[0])
-
-        # 여기서는 일단 fingertip(0)만 사용 (thumb은 추후 확장)
-        if cls != 0:
-            continue
-
-        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
-        cx = (x1 + x2) / 2.0
-        cy = (y1 + y2) / 2.0
-
-        fingers.append({
-            "pt": (cx, cy),
-            "conf": conf,
-            "cls": cls
-        })
-
-    return fingers
-
 # ==============================
-# 5. 상태 변수
+# 4. 상태 변수
 # ==============================
 prev_quad = None
 prev_tag_centers = {}
-H_norm = None
-H_norm_inv = None
+H_kb2img = None  # 키보드(0~1) → 이미지
+H_img2kb = None  # 이미지 → 키보드(0~1)
 
 # ==============================
-# 6. 메인 루프
+# 5. 메인 루프
 # ==============================
 cap = cv2.VideoCapture(CAMERA_INDEX)
 if not cap.isOpened():
@@ -192,7 +178,6 @@ while True:
 
     # --------- AprilTag 탐지 ---------
     corners, ids, _ = aruco.detectMarkers(gray, dictionary, parameters=parameters)
-
     img_quad = None
 
     if ids is not None and len(ids) > 0:
@@ -203,18 +188,17 @@ while True:
         aruco.drawDetectedMarkers(frame, corners, ids.reshape(-1, 1))
 
         curr_tag_centers = {
-            int(ids[i]): corners_np[i].mean(axis=0)
-            for i in range(len(ids))
+            int(ids[i]): corners_np[i].mean(axis=0) for i in range(len(ids))
         }
         num_tags = len(ids)
 
         # 4개 태그 → 완전 homography
         if num_tags >= 4:
             roles = classify_four_tags(corners_np, ids)
-            TL = roles['top_left']
-            TR = roles['top_right']
-            BR = roles['bottom_right']
-            BL = roles['bottom_left']
+            TL = roles["top_left"]
+            TR = roles["top_right"]
+            BR = roles["bottom_right"]
+            BL = roles["bottom_left"]
 
             img_quad = np.vstack([TL, TR, BR, BL]).astype(np.float32)
 
@@ -248,66 +232,120 @@ while True:
 
     # homography 계산
     if img_quad is not None and img_quad.shape == (4, 2):
-        draw_keyboard_quad(frame, img_quad, color=(0, 255, 0))
+        img_quad_f = img_quad.astype(np.float32)
 
-        H_norm, _ = cv2.findHomography(kb_quad, img_quad)
-        if H_norm is not None:
-            H_norm_inv = np.linalg.inv(H_norm)
+        # 키보드(0~1) → 이미지
+        H_kb2img = cv2.getPerspectiveTransform(kb_quad, img_quad_f)
+        # 이미지 → 키보드(0~1)
+        H_img2kb = cv2.getPerspectiveTransform(img_quad_f, kb_quad)
 
-        if DRAW_KEY_BOXES and H_norm is not None:
+        # 키보드 외곽선
+        draw_keyboard_quad(frame, img_quad_f, color=(0, 255, 0))
+
+        # JSON 키 박스 디버그
+        if DRAW_KEY_BOXES and H_kb2img is not None:
             for key in keys:
-                x = key["x"]; y = key["y"]
-                w_k = key["w"]; h_k = key["h"]
+                x = key["x"]
+                y = key["y"]
+                w_k = key["w"]
+                h_k = key["h"]
 
-                rect_kb = np.array([
-                    [x,        y       ],
-                    [x + w_k,  y       ],
-                    [x + w_k,  y + h_k ],
-                    [x,        y + h_k ]
-                ], dtype=np.float32)
+                rect_kb = np.array(
+                    [
+                        [x, y],
+                        [x + w_k, y],
+                        [x + w_k, y + h_k],
+                        [x, y + h_k],
+                    ],
+                    dtype=np.float32,
+                ).reshape(1, -1, 2)
 
-                rect_img = cv2.perspectiveTransform(rect_kb[None, :, :], H_norm)[0]
+                rect_img = cv2.perspectiveTransform(rect_kb, H_kb2img)[0]
                 rect_int = rect_img.astype(int)
                 cv2.polylines(frame, [rect_int], True, (80, 0, 0), 1)
 
     # --------- YOLO 손가락 추론 + 키 매핑 ---------
-    if H_norm_inv is not None:
-        fingers = infer_fingers_from_model(frame)
+    if H_img2kb is not None:
+        results = model(
+            frame, imgsz=640, conf=YOLO_CONF, device=YOLO_DEVICE
+        )[0]
 
-        for f in fingers:
-            cx, cy = f["pt"]
-            conf = f["conf"]
+        for box in results.boxes:
+            cls = int(box.cls[0])
+            conf = float(box.conf[0])
 
-            # 이미지 → 키보드 정규화 좌표
-            pt_img = np.array([[ [cx, cy] ]], dtype=np.float32)
-            pt_kb = cv2.perspectiveTransform(pt_img, H_norm_inv)[0][0]
-            kx, ky = float(pt_kb[0]), float(pt_kb[1])
-
-            # 키보드 영역 밖이면 무시
-            if not (0.0 <= kx <= 1.0 and 0.0 <= ky <= 1.0):
+            # fingertip 클래스만 사용 (필요 시 thumb 등 추가)
+            if cls != 0:
                 continue
 
-            key_id = find_key_at(kx, ky)
+            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(float)
+            cx = (x1 + x2) / 2.0
+            cy = (y1 + y2) / 2.0
 
-            # 시각화
-            color = (0, 255, 255)
-            cv2.circle(frame, (int(cx), int(cy)), 6, color, -1)
+            # 1) 중심점을 키보드 좌표계(0~1)로 투영
+            pt_img = np.array([[[cx, cy]]], dtype=np.float32)  # (1,1,2)
+            pt_kb = cv2.perspectiveTransform(pt_img, H_img2kb)[0][0]
+            kx, ky = float(pt_kb[0]), float(pt_kb[1])
 
+            # 2) 키보드 영역 밖이면 no-key
+            if not (0.0 <= kx <= 1.0 and 0.0 <= ky <= 1.0):
+                key_id = None
+            else:
+                # 3) 안에 있으면: 그 점 기준으로 키 선택 (없으면 가장 가까운 키)
+                key_id = select_key_by_center_or_nearest(kx, ky, keys)
+
+            # -------- 시각화는 항상 수행 --------
+            base_color = (0, 255, 255)  # 기본: 노랑
+            mapped_color = (0, 255, 0)  # 키 매핑 성공: 초록
+
+            color = mapped_color if key_id is not None else base_color
+
+            # 박스
+            cv2.rectangle(
+                frame,
+                (int(x1), int(y1)),
+                (int(x2), int(y2)),
+                color,
+                2,
+            )
+
+            # 중심점
+            cv2.circle(
+                frame,
+                (int(cx), int(cy)),
+                6,
+                color,
+                -1,
+            )
+
+            # 라벨 텍스트
             if key_id is not None:
-                cv2.putText(frame, f"{key_id} ({conf:.2f})",
-                            (int(cx) + 10, int(cy) - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                label = f"{key_id} conf:{conf:.2f}"
+            else:
+                label = f"no-key conf:{conf:.2f}"
 
-    else:
-        cv2.putText(frame, "NO KEYBOARD HOMOGRAPHY",
-                    (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
-                    (0, 0, 255), 2)
+            cv2.putText(
+                frame,
+                label,
+                (int(cx) + 10, int(cy) - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                color,
+                2,
+            )
 
-    cv2.putText(frame, "Press 'q' to quit", (10, 25),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+    cv2.putText(
+        frame,
+        "Press 'q' to quit",
+        (10, 25),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (0, 255, 255),
+        2,
+    )
 
     cv2.imshow("Keyboard + YOLO Fingertip", frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
 cap.release()

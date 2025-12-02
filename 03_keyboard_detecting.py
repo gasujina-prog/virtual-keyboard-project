@@ -21,10 +21,10 @@ keys = kb_layout["keys"]
 
 # 키보드 정규화 전체 사각형 (0~1)
 kb_quad = np.array([
-    [0.0, 0.0],  # TL
-    [1.0, 0.0],  # TR
-    [1.0, 1.0],  # BR
-    [0.0, 1.0],  # BL
+    [0.0, 0.0],  # BR
+    [1.0, 0.0],  # BL
+    [1.0, 1.0],  # TL
+    [0.0, 1.0],  # TR
 ], dtype=np.float32)
 
 
@@ -66,12 +66,7 @@ dictionary = aruco.getPredefinedDictionary(aruco.DICT_APRILTAG_25h9)
 parameters = aruco.DetectorParameters()
 
 def classify_four_tags(corners, ids):
-    """
-    corners: list of (4,2)
-    ids    : (N,)
-    화면 기준으로 TL/TR/BL/BR 분류 후,
-    각 태그의 '안쪽' 꼭짓점 사용 (존님이 지정한 방식)
-    """
+
     ids = np.array(ids).flatten()
     centers = []
 
@@ -97,10 +92,6 @@ def classify_four_tags(corners, ids):
     br_idx = int(bottom_two[1, 0])
 
     def corner_inner(idx, role):
-        """
-        corners[idx]: [TL, TR, BR, BL]
-        키보드 안쪽을 향하는 꼭짓점 선택
-        """
         c = np.array(corners[idx]).reshape(-1, 2)
         if role == 'top_left':
             return c[3]   # BL
