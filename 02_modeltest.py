@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import cv2
 
 # 학습 완료된 모델 로드
-model = YOLO('runs/detect/train/weights/best.pt')   # 경로는 yolo 커맨드 돌릴 때마다 train[x] 폴더 새로 생성됨.
+model = YOLO('finger_project/train_result/weights/best.pt')   # 경로는 yolo 커맨드 돌릴 때마다 train[x] 폴더 새로 생성됨.
                                                     # 여러번 돌렸으면 테스트하고 싶은 train 번호 경로 수정할 것.
 
 # 카메라 열기
