@@ -4,7 +4,7 @@ import random
 # 먼저 기존 torch가 있다면 삭제 (충돌 방지)
 #pip uninstall torch torchvision torchaudio -y
 
-# CUDA 12.1 버전용 PyTorch 설치 (추천)
+# CUDA 12.2 버전용 PyTorch 설치 (추천)
 #pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 from ultralytics import YOLO
 import torch

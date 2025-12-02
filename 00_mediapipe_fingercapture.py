@@ -21,7 +21,7 @@ hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_c
 mp_drawing = mp.solutions.drawing_utils
 
 # 카메라 연결
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 if not cap.isOpened():
     raise IOError("카메라를 열 수 없습니다. 연결 상태 확인하세요.")
 
@@ -53,7 +53,7 @@ while True:
                 # 손가락 (손톱 포함?) 끝 마디가 반이상 들어오도록 조정
                 ################################################
 
-                bbox_size = 40  # 박스 사이즈 px 단위
+                bbox_size = 20  # 박스 사이즈 px 단위
                 x1 = max(cx - bbox_size // 2, 0)
                 y1 = max(cy - bbox_size // 2, 0)
                 x2 = min(cx + bbox_size // 2, w)
