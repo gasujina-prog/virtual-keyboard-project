@@ -84,7 +84,7 @@ def is_fingers_folded_by_distance(hand_landmarks):
     return folded
 
 # 카메라 연결
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     raise IOError("카메라를 열 수 없습니다. 연결 상태 확인하세요.")
 
@@ -123,12 +123,7 @@ while True:
                 # 카메라 높이에 따라서 손가락 사이즈 달라짐,
                 # 손가락 (손톱 포함?) 끝 마디가 반이상 들어오도록 조정
                 ################################################
-<<<<<<< HEAD
-
-                bbox_size = 20  # 박스 사이즈 px 단위
-=======
                 bbox_size = 26  # 박스 사이즈 px 단위
->>>>>>> df84e340bb24e8b432822d81f6707bc558fa73ec
                 x1 = max(cx - bbox_size // 2, 0)
                 y1 = max(cy - bbox_size // 2, 0)
                 x2 = min(cx + bbox_size // 2, w)
