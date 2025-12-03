@@ -43,7 +43,6 @@ def rotate_keys_180_inplace(keys_list):
         key["y"] = 1.0 - (y + h)
 
 
-# 03번에서 사용하던 대로 180도 회전 적용
 rotate_keys_180_inplace(keys)
 
 
