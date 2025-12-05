@@ -1,5 +1,6 @@
 import cv2
 import cv2.aruco as aruco
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import json
 import time
@@ -30,7 +31,7 @@ SPECIAL_KEYS = {
     "Enter": "enter",
     "Backspace": "backspace",
     "Tab": "tab",
-    "CapsRock": "capslock",  # 오타 수정 (Rock -> Lock)
+    "CapsLock": "capslock",
     "Shift": "shift",
     "RShift": "shiftright",
     "Ctrl": "ctrl",
@@ -38,7 +39,7 @@ SPECIAL_KEYS = {
     "Alt": "alt",
     "RAlt": "altright",
     "Win": "win",
-    "Fn": None,  # Fn키는 OS에서 직접 제어하기 어려움
+    "한/영": "한/영",  # Fn키는 OS에서 직접 제어하기 어려움
     "up": "up",
     "down": "down",
     "left": "left",
@@ -53,7 +54,7 @@ SPECIAL_KEYS = {
 
 # JSON 로드
 try:
-    with open(LAYOUT_FILE, "r") as f:
+    with open(LAYOUT_FILE, "r", encoding="utf-8") as f:
         raw_layout = json.load(f)
 
     # JSON 포맷 변환 (리스트 -> 딕셔너리)
@@ -130,6 +131,33 @@ def draw_keyboard_quad(frame, quad, color=(0, 255, 0)):
     for i in range(4):
         cv2.line(frame, tuple(quad_int[i]), tuple(quad_int[(i + 1) % 4]), color, 2)
 
+
+def draw_keyboard_text_all(img, layout_dict, font_path="malgun.ttf", size=20):
+    """
+    이미지를 Pillow로 변환한 뒤, 모든 키의 글자를 한 번에 쓰고 다시 OpenCV 포맷으로 반환
+    """
+    # 1. OpenCV(BGR) -> PIL(RGB) 변환 (딱 한 번!)
+    img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+
+    try:
+        font = ImageFont.truetype(font_path, size)
+    except:
+        font = ImageFont.load_default()
+
+    # 2. 모든 키에 대해 반복해서 글씨 쓰기 (변환 없이 그리기만 반복)
+    for key, rect in layout_dict.items():
+        # rect 포맷 확인 (리스트 or 딕셔너리)
+        if isinstance(rect, dict):
+            x, y = rect['x'], rect['y']
+        else:
+            x, y = rect[0], rect[1]
+
+        # 글자 위치 잡기 (박스 안쪽)
+        draw.text((x + 5, y + 5), key, font=font, fill=(0, 255, 0))  # 검은색 글씨
+
+    # 3. PIL(RGB) -> OpenCV(BGR) 변환 (딱 한 번!)
+    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
 # ==========================================
 # 3. 상태 변수
@@ -225,10 +253,16 @@ while True:
     if current_homography is not None:
         # 워핑된 화면은 검은 배경으로 시작 (리소스 절약)
         # 키보드 레이아웃 그리기
+        # 1. 먼저 박스(사각형)만 OpenCV로 빠르게 다 그립니다.
         for key, rect in KEY_LAYOUT.items():
-            rx, ry, rw, rh = rect['x'], rect['y'], rect['w'], rect['h']
-            cv2.rectangle(warped_view, (rx, ry), (rx + rw, ry + rh), (0, 100, 0), 1)  # 어두운 초록 테두리
-            cv2.putText(warped_view, key, (rx + 5, ry + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+            if isinstance(rect, dict):
+                rx, ry, rw, rh = rect['x'], rect['y'], rect['w'], rect['h']
+            else:
+                rx, ry, rw, rh = rect
+            # 박스 그리기 (OpenCV가 더 빠름)
+            cv2.rectangle(warped_view, (rx, ry), (rx + rw, ry + rh), (0, 255, 0), 2)
+        # 2. 글씨는 한방에 몰아서 그립니다. (변환 비용 최소화)
+        warped_view = draw_keyboard_text_all(warped_view, KEY_LAYOUT)
 
     # [3] YOLO 손가락 탐지
     results = model(frame, verbose=False)
@@ -264,14 +298,46 @@ while True:
             cv2.circle(warped_view, (int(tx), int(ty)), 8, (0, 0, 255), -1)
 
             # 히트 테스트
+            # ---------------------------------------------------------
+            # [수정] 1. OpenCV로 박스(Rectangle) 먼저 그리기 (빠름)
+            # ---------------------------------------------------------
             for key_name, rect in KEY_LAYOUT.items():
                 rx, ry, rw, rh = rect['x'], rect['y'], rect['w'], rect['h']
+
+                # 기본 스타일 (안 눌림)
+                color = (0, 255, 0)  # 초록색
+                thickness = 1
+
+                # 히트 테스트 (손가락이 키 안에 있는지 확인)
                 if rx < tx < rx + rw and ry < ty < ry + rh:
                     active_keys.add(key_name)
-                    # 감지된 키 시각화 (노란색)
-                    cv2.rectangle(warped_view, (rx, ry), (rx + rw, ry + rh), (0, 255, 255), -1)
-                    cv2.putText(warped_view, key_name, (rx + 5, ry + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+                    color = (0, 255, 255)  # 노란색 (눌림)
+                    thickness = -1  # 채우기
 
+                # 박스 그리기
+                cv2.rectangle(warped_view, (rx, ry), (rx + rw, ry + rh), color, thickness)
+
+            # ---------------------------------------------------------
+            # [수정] 2. Pillow로 글씨(Text) 한 번에 쓰기 (한글/특수문자 지원)
+            # ---------------------------------------------------------
+            # (1) OpenCV(BGR) -> Pillow(RGB) 변환
+            img_pil = Image.fromarray(cv2.cvtColor(warped_view, cv2.COLOR_BGR2RGB))
+            draw = ImageDraw.Draw(img_pil)
+
+            # 폰트 설정 (없으면 기본 폰트)
+            try:
+                font = ImageFont.truetype("malgun.ttf", 20)  # 윈도우 맑은 고딕
+            except:
+                font = ImageFont.load_default()
+
+            # (2) 모든 키의 글씨 쓰기
+            for key_name, rect in KEY_LAYOUT.items():
+                rx, ry = rect['x'], rect['y']
+                # 글씨 색상 (검정)
+                draw.text((rx + 5, ry + 20), key_name, font=font, fill=(0, 0, 0))
+
+            # (3) Pillow(RGB) -> OpenCV(BGR) 복구
+            warped_view = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
         # 입력 로직 (상태 머신)
         for key in active_keys:
             state = key_states[key]
