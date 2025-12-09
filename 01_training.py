@@ -14,7 +14,7 @@ SRC_IMG_DIR = "fingercapture/image"
 SRC_LABEL_DIR = "fingercapture/label"
 
 # 최종 YOLO 데이터셋 폴더
-DST_BASE = "dataset"
+DST_BASE = "dataset2"
 DST_IMG_TRAIN = os.path.join(DST_BASE, "images/train")
 DST_IMG_VAL   = os.path.join(DST_BASE, "images/val")
 DST_LBL_TRAIN = os.path.join(DST_BASE, "labels/train")
@@ -31,8 +31,8 @@ MIN_LABELS_PER_IMAGE = 1   # 최소 박스 개수
 REQUIRE_THUMB = False       # 엄지(클래스 1)가 반드시 포함된 이미지만 사용할지 여부
 MAX_BOX_W = 0.5            # 너무 큰 박스 (프레임의 절반 이상)는 제외
 MAX_BOX_H = 0.5
-MIN_BOX_W = 0.01           # 너무 작은 박스(1% 미만) 제거
-MIN_BOX_H = 0.01
+MIN_BOX_W = 0.001           # 너무 작은 박스(1% 미만) 제거
+MIN_BOX_H = 0.001
 
 def parse_label_file(label_path):
     """
@@ -152,15 +152,15 @@ def main():
     # 3. 모델 훈련
     results = model.train(
         data='data.yaml',  # 앞서 만든 데이터 설정 파일
-        epochs=100,  # 전체 데이터셋 반복 학습 횟수
+        epochs=200,  # 전체 데이터셋 반복 학습 횟수
         imgsz=640,  # 이미지 크기 (보통 640 사용)
         batch=16,  # 배치 크기 (GPU 메모리에 맞춰 조절, 메모리 부족 시 줄이세요)
         device=0,  # ★ GPU 사용 설정 (0, 1, 2... 또는 [0, 1])
-        workers=4,  # 데이터 로딩에 사용할 CPU 프로세스 수 (Windows라면 0 권장)
-        project='finger_project',  # 결과가 저장될 프로젝트 폴더 이름
+        workers=0,  # 데이터 로딩에 사용할 CPU 프로세스 수 (Windows라면 0 권장)
+        project='finger_project2',  # 결과가 저장될 프로젝트 폴더 이름
         name='train_result',  # 결과가 저장될 하위 폴더 이름
         exist_ok=True,  # 폴더가 있어도 덮어쓰기 가능 여부
-        patience=6,  # 성능 향상이 없으면 10 에포크 뒤 조기 종료
+        patience=10,  # 성능 향상이 없으면 10 에포크 뒤 조기 종료
         verbose=True
     )
 

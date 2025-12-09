@@ -12,7 +12,7 @@ import numpy as np
 SAVE_MODE = False
 
 # 저장 주기
-save_interval_sec = 1
+save_interval_sec = 0.3
 last_save_time = 0
 
 # 저장 폴더 구성
@@ -73,7 +73,7 @@ def is_fingers_folded_by_distance(hand_landmarks):
     lm = hand_landmarks.landmark
     p0 = np.array([lm[0].x, lm[0].y])  # 손목 기준
 
-    finger_indices = [8, 12, 16, 20]   # 검지, 중지, 약지, 새끼
+    finger_indices = [8]   # 검지, 중지, 약지, 새끼
     folded = {}  # 결과 저장용 딕셔너리
 
     for i in finger_indices:
@@ -109,7 +109,7 @@ while True:
             thumb_folded = is_thumb_folded_by_distance(hand_landmarks)
             finger_folded = is_fingers_folded_by_distance(hand_landmarks)
             # 4번 엄지, 나머지 손가락
-            for idx in [4,8,12,16,20]:
+            for idx in [8]:
 
                 if idx == 4 and thumb_folded:
                     continue
@@ -123,14 +123,14 @@ while True:
                 # 카메라 높이에 따라서 손가락 사이즈 달라짐,
                 # 손가락 (손톱 포함?) 끝 마디가 반이상 들어오도록 조정
                 ################################################
-                bbox_size = 26  # 박스 사이즈 px 단위
+                bbox_size = 45  # 박스 사이즈 px 단위
                 x1 = max(cx - bbox_size // 2, 0)
                 y1 = max(cy - bbox_size // 2, 0)
                 x2 = min(cx + bbox_size // 2, w)
                 y2 = min(cy + bbox_size // 2, h)
 
                 # 시각화
-                if idx in [8,12,16,20]:
+                if idx in [8]:
                     cv2.rectangle(vis_frame, (x1, y1), (x2, y2), (255, 255, 0), 1)
                     cv2.putText(vis_frame, "tip", (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
                 else:
@@ -177,7 +177,7 @@ while True:
                 for hand_landmarks in results.multi_hand_landmarks:
                     thumb_folded = is_thumb_folded_by_distance(hand_landmarks)
                     finger_folded = is_fingers_folded_by_distance(hand_landmarks)
-                    for idx in [4, 8, 12, 16, 20]:
+                    for idx in [8]:
                         lm = hand_landmarks.landmark[idx]
                         if idx == 4 and thumb_folded:
                             continue
@@ -191,7 +191,7 @@ while True:
 
                         # YOLO format: class cx cy w h
                         # 라벨링 저장
-                        if idx in [8, 12, 16, 20]:
+                        if idx in [8]:
                             f.write(f"0 {cx:.6f} {cy:.6f} {bbox_w:.6f} {bbox_h:.6f}\n") # 나머지 손가락 0번
                         else:
                             f.write(f"1 {cx:.6f} {cy:.6f} {bbox_w:.6f} {bbox_h:.6f}\n") # 엄지 1번

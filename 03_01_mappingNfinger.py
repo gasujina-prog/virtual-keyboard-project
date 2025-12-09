@@ -15,7 +15,7 @@ from ultralytics import YOLO
 WARP_W = 1200
 WARP_H = 620
 LAYOUT_FILE = "key_layout.json"
-MODEL_PATH = R'finger_project\finger_project\train_result\weights\best.pt'  # 모델 경로 확인 필수!
+MODEL_PATH = R'finger_project\finger_project\train_result\weights\YUN_best.pt'  # 모델 경로 확인 필수!
 
 # 입력 설정
 DWELL_TIME_THRESHOLD = 0.5  # 0.5초 머무르면 입력
