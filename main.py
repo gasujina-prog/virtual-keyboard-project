@@ -1,92 +1,99 @@
-# main.py
-
-import sys
+from flask import Flask, render_template, Response, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 import time
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import QThread, QObject, pyqtSignal, QSize, Qt
-from PyQt6.QtGui import QImage, QPixmap
+import threading
 
-import config
+# 파일명: web_converged.py 로 변경된 것 반영
+from web_converged import KeyboardDetector
 
+app = Flask(__name__)
 
-# ----------------------------------------------------
-# 1. 워커 클래스
-# ----------------------------------------------------
-class VisionWorker(QObject):
-    frame_ready = pyqtSignal(QImage)
-    gesture_detected = pyqtSignal(str)
-    running = True
-
-    def run(self):
-        print("Vision Worker Thread Started.")
-        while self.running:
-            # 여기에 OpenCV로 카메라 프레임을 읽고 MediaPipe 처리하는 코드를 작성합니다.
-            # 여기서 실제 프레임과 제스처 신호가 UI로 emit 되어야 합니다.
-            # self.frame_ready.emit(processed_qimage)
-            # self.gesture_detected.emit(gesture_name)
-
-            time.sleep(1 / config.FRAME_RATE)
-    def stop(self):
-        self.running = False
-        # ----------------------------------------------------
+# ★ DB 이름 변경 (확장성을 위해) ★
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///web_project.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
 
-# 2. 메인 윈도우 (UI/통합 담당)
-# ----------------------------------------------------
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("가상 키보드 및 제스처 인식 시스템")
-        self.setMinimumSize(QSize(config.VIDEO_WIDTH + 100, config.VIDEO_HEIGHT + 100))
+# DB 모델 (키보드 로그)
+class KeyLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    key_name = db.Column(db.String(50), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.now)
 
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "key": self.key_name,
+            "time": self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        }
 
-        layout = QVBoxLayout(central_widget)
-        self.video_label = QLabel("비전 모듈 대기 중...")
-        self.video_label.setFixedSize(config.VIDEO_WIDTH, config.VIDEO_HEIGHT)
-        self.video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.video_label)
 
-        self.start_vision_thread()
+# 비전 객체
+detector = KeyboardDetector()
 
-    def start_vision_thread(self):
-        self.thread = QThread()
-        self.worker = VisionWorker()
 
-        self.worker.moveToThread(self.thread)
+# DB 저장 스레드
+def save_keys_worker():
+    print("[INFO] DB 저장 워커 가동")
+    while True:
+        time.sleep(1)  # 1초 단위로 저장
+        inputs = detector.pop_inputs()
+        if inputs:
+            with app.app_context():
+                for item in inputs:
+                    new_log = KeyLog(key_name=item['key'])
+                    db.session.add(new_log)
+                db.session.commit()
+                # print(f"💾 Saved {len(inputs)} keys") # 로그 너무 많으면 주석 처리
 
-        self.thread.started.connect(self.worker.run)
 
-        # 워커의 신호를 받아 처리할 메서드(슬롯) 연결
-        self.worker.frame_ready.connect(self.update_video_frame)
-        self.worker.gesture_detected.connect(self.handle_gesture)
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-        self.thread.start()
-        print("Main UI Thread Started.")
 
-    def update_video_frame(self, qimage):
-        self.video_label.setPixmap(QPixmap.fromImage(qimage))
+# ★ 프론트엔드가 데이터를 요청할 주소 (API) ★
+@app.route('/api/logs')
+def get_logs():
+    # 최신순으로 10개만 가져오기
+    logs = KeyLog.query.order_by(KeyLog.id.desc()).limit(10).all()
+    return jsonify([log.to_dict() for log in logs])
 
-    def handle_gesture(self, gesture_name):
-        #여기에 매핑 테이블 조회 및 키 입력 실행 로직을 구현합니다.
+
+@app.route('/video_feed_cam')
+def video_feed_cam():
+    def generate():
+        while True:
+            cam, _ = detector.get_frames()
+            if cam: yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + cam + b'\r\n')
+
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/video_feed_warp')
+def video_feed_warp():
+    def generate():
+        while True:
+            _, warp = detector.get_frames()
+            if warp: yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + warp + b'\r\n')
+
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+if __name__ == "__main__":
+    try:
+        with app.app_context():
+            db.create_all()
+
+        detector.start()
+
+        t = threading.Thread(target=save_keys_worker, daemon=True)
+        t.start()
+
+        print("[INFO] 서버 시작: http://127.0.0.1:5000")
+        app.run(host='0.0.0.0', port=5000, debug=False)
+    except KeyboardInterrupt:
         pass
-
-    def closeEvent(self, event):
-        # 종료 시 쓰레드를 안전하게 정리합니다.
-        self.worker.stop()
-        self.worker.deleteLater()
-        self.thread.quit()
-        self.thread.wait()
-        super().closeEvent(event)
-
-
-# ----------------------------------------------------
-# 3. 애플리케이션 실행
-# ----------------------------------------------------
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+    finally:
+        detector.stop()

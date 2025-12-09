@@ -236,3 +236,5 @@ Thumbs.db
 # OpenCV/MediaPipe temporary files (if any are saved)
 *.jpg
 *.png
+
+fingercapture/

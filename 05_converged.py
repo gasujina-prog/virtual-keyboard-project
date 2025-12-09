@@ -8,7 +8,7 @@ from ultralytics import YOLO
 # ==============================
 CAMERA_INDEX = 0
 JSON_PATH = "kblayout.json"
-YOLO_WEIGHTS = "finger_project/train_result/weights/best.pt"
+YOLO_WEIGHTS = "finger_project/finger_project/train_result/weights/best.pt"
 
 DRAW_KEY_BOXES = True
 YOLO_CONF = 0.3         # 신뢰도 threshold
