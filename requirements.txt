@@ -12,6 +12,7 @@ numpy<2.0.0
 ultralytics
 opencv-python
 mediapipe
+pyautogui
 
 # [Web Framework - Latest]
 Flask
