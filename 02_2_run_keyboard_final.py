@@ -19,8 +19,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 WARP_W = 1200
 WARP_H = 620
 LAYOUT_FILE = "key_layout.json"
-YOLO_PATH = r'indexFinger_best.pt'  # 경로 확인!
-CLASSIFIER_PATH = os.path.join(current_dir, "touch_classifier_best.pth")
+YOLO_PATH = r'modelWeight\indexFinger_best.pt'  # 경로 확인!
+CLASSIFIER_PATH = os.path.join(current_dir, r"modelWeight\touch_classifier_best.pth")
 
 COOLDOWN_TIME = 0.2
 TOUCH_MIN_DURATION = 0.1
