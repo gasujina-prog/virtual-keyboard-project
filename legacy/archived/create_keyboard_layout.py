@@ -2,7 +2,6 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 import json
-import os
 
 # ==========================================
 # 1. 설정 (기존 프로젝트와 동일하게 맞춤)
