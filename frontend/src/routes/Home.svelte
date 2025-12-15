@@ -1,75 +1,79 @@
 <script>
-    import fastapi from "../lib/api"
-    import { link } from 'svelte-spa-router'
-    import { page, is_login } from "../lib/store"
-    import moment from "moment/min/moment-with-locales"
-    moment.locale('ko')
+    import { push } from 'svelte-spa-router'
+    import { is_login } from "../lib/store"
+    import { onMount, onDestroy } from 'svelte'
 
-    let question_list = []
-    let size = 10
-    let total = 0
-    $: total_page = Math.ceil(total/size)
+    // [추가] 테스트용 텍스트 변수
+    let testInput = ""
+    let sseSource = null
 
-    function get_question_list(_page) {
-        let params = {
-            page: _page,
-            size: size,
+    // [추가] 화면이 켜지면 서버와 연결 (SSE)
+    onMount(() => {
+        if ($is_login) {
+            // 서버의 스트림 주소로 연결
+            sseSource = new EventSource('http://127.0.0.1:5000/stream')
+
+            sseSource.onmessage = (event) => {
+                const key = event.data
+                console.log("Input received:", key)
+
+                if (key === 'Backspace') {
+                    testInput = testInput.slice(0, -1)
+                } else if (key === 'SpaceBar') { // 스페이스바 처리
+                    testInput += " "
+                } else if (key === 'Enter') {
+                    testInput += "\n"
+                } else if (key.length === 1) { // 일반 문자만 (Shift 등 제외)
+                    testInput += key
+                }
+            }
         }
-        fastapi('get', '/api/question/list', params, (json) => {
-            question_list = json.question_list
-            $page = _page
-            total = json.total
-        })
-    }
-    $: get_question_list($page)
+    })
+
+    // [추가] 화면 나가면 연결 끊기 (리소스 낭비 방지)
+    onDestroy(() => {
+        if (sseSource) {
+            sseSource.close()
+        }
+    })
+
 </script>
 
-<div class="container my-3">
-    <table class="table">
-        <thead>
-        <tr class="text-center table-dark">
-            <th>번호</th>
-            <th style="width:50%">제목</th>
-            <th>글쓴이</th>
-            <th>작성일시</th>
-        </tr>
-        </thead>
-        <tbody>
-        {#each question_list as question, i}
-        <tr class="text-center">
-            <td>{total - ($page * size)- i}</td>
-            <td class="text-start">
-                <a use:link href="/detail/{question.id}">{question.subject}</a>
-                {#if question.answers.length > 0 }
-                    <span class="text-danger small mx-2">{question.answers.length}</span>
-                {/if}
-            </td>
-            <td>{ question.user ? question.user.username : "" }</td>
-            <td>{moment(question.create_date).format("YYYY년 MM월 DD일 hh:mm a")}</td>
-        </tr>
-        {/each}
-        </tbody>
-    </table>
-    <!-- 페이징처리 시작 -->
-    <ul class="pagination justify-content-center">
-        <!-- 이전페이지 -->
-        <li class="page-item {$page <= 0 && 'disabled'}">
-            <button class="page-link" on:click="{() => get_question_list($page-1)}">이전</button>
-        </li>
-        <!-- 페이지번호 -->
-        {#each Array(total_page) as _, loop_page}
-        {#if loop_page >= $page-5 && loop_page <= $page+5}
-        <li class="page-item {loop_page === $page && 'active'}">
-            <button on:click="{() => get_question_list(loop_page)}" class="page-link">{loop_page+1}</button>
-        </li>
-        {/if}
-        {/each}
-        <!-- 다음페이지 -->
-        <li class="page-item {$page >= total_page-1 && 'disabled'}">
-            <button class="page-link" on:click="{() => get_question_list($page+1)}">다음</button>
-        </li>
-    </ul>
-    <!-- 페이징처리 끝 -->
-    <a use:link href="/question-create" class="btn btn-primary {$is_login ? '' : 'disabled'}">질문 등록하기</a>
-</div>
+<div class="container text-center mt-5">
+    <h1 class="display-4 text-primary fw-bold">Project Keyboard</h1>
+    <p class="lead mb-4">
+        웹캠 하나로 즐기는<br>
+        가상 키보드 & 타자 연습 플랫폼
+    </p>
 
+    {#if $is_login}
+        <div class="border rounded p-4 shadow-sm bg-white mx-auto mb-4" style="max-width: 600px;">
+            <h4 class="mb-3">⌨️ 입력 테스트 존</h4>
+            <p class="text-muted small">카메라를 켜고 가상 키보드를 눌러보세요!<br>(USB 키보드로도 입력/수정이 가능합니다)</p>
+
+            <input type="text" class="form-control form-control-lg text-center mb-3"
+                   placeholder="여기에 타이핑됩니다..."
+                   bind:value={testInput}>
+
+            <div class="d-grid gap-2">
+                <button class="btn btn-success btn-lg" disabled>
+                    🎮 게임 시작 (준비중)
+                </button>
+                <button class="btn btn-warning btn-lg text-white" on:click={() => alert('마이페이지 기능은 준비 중입니다!')}>
+                    👤 마이페이지
+                </button>
+            </div>
+        </div>
+
+    {:else}
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+            <button class="btn btn-primary btn-lg px-4 gap-3" on:click="{() => push('/user-login')}">
+                로그인 하고 시작하기
+            </button>
+            <button class="btn btn-outline-secondary btn-lg px-4" on:click="{() => push('/board')}">
+                게시판 구경하기
+            </button>
+        </div>
+    {/if}
+
+</div>

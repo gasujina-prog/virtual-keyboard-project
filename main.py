@@ -1,99 +1,68 @@
-from flask import Flask, render_template, Response, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
-import time
+import os
+import secrets
 import threading
+from flask import Flask
+from flask_cors import CORS
 
-# 파일명: web_converged.py 로 변경된 것 반영
-from web_converged import KeyboardDetector
+# 모듈 가져오기
+from core.database import db
+from core import state
+from services.web_converged import KeyboardDetector
+from services.worker import save_keys_worker
 
-app = Flask(__name__)
+# [수정] 라우터 가져오기 (board_router만 이름 변경됨)
+from routers import auth, board_router, stream, views
 
-# ★ DB 이름 변경 (확장성을 위해) ★
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///web_project.db'
+# ==========================================
+# 1. Flask 앱 설정
+# ==========================================
+app = Flask(__name__,
+            static_folder='static',
+            template_folder='templates')
+
+CORS(app)
+
+# DB 설정
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FOLDER = "database"
+DB_DIR = os.path.join(BASE_DIR, DB_FOLDER)
+if not os.path.exists(DB_DIR):
+    os.makedirs(DB_DIR)
+
+db_path = os.path.join(DB_DIR, "web_project.db")
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+app.secret_key = secrets.token_hex(16)
 
+# DB 초기화
+db.init_app(app)
 
-# DB 모델 (키보드 로그)
-class KeyLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    key_name = db.Column(db.String(50), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.now)
+# ==========================================
+# 2. 블루프린트 등록 (라우터 연결)
+# ==========================================
+app.register_blueprint(auth.bp)
+app.register_blueprint(board_router.bp)   # [중요] board -> board_router
+app.register_blueprint(stream.bp)
+app.register_blueprint(views.bp)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "key": self.key_name,
-            "time": self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        }
-
-
-# 비전 객체
-detector = KeyboardDetector()
-
-
-# DB 저장 스레드
-def save_keys_worker():
-    print("[INFO] DB 저장 워커 가동")
-    while True:
-        time.sleep(1)  # 1초 단위로 저장
-        inputs = detector.pop_inputs()
-        if inputs:
-            with app.app_context():
-                for item in inputs:
-                    new_log = KeyLog(key_name=item['key'])
-                    db.session.add(new_log)
-                db.session.commit()
-                # print(f"💾 Saved {len(inputs)} keys") # 로그 너무 많으면 주석 처리
-
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-
-# ★ 프론트엔드가 데이터를 요청할 주소 (API) ★
-@app.route('/api/logs')
-def get_logs():
-    # 최신순으로 10개만 가져오기
-    logs = KeyLog.query.order_by(KeyLog.id.desc()).limit(10).all()
-    return jsonify([log.to_dict() for log in logs])
-
-
-@app.route('/video_feed_cam')
-def video_feed_cam():
-    def generate():
-        while True:
-            cam, _ = detector.get_frames()
-            if cam: yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + cam + b'\r\n')
-
-    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-@app.route('/video_feed_warp')
-def video_feed_warp():
-    def generate():
-        while True:
-            _, warp = detector.get_frames()
-            if warp: yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + warp + b'\r\n')
-
-    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
+# ==========================================
+# 3. 서버 실행 및 백그라운드 작업 시작
+# ==========================================
 if __name__ == "__main__":
-    try:
-        with app.app_context():
-            db.create_all()
+    # DB 테이블 생성
+    with app.app_context():
+        # [중요] models를 import해야 테이블이 생성됨 (이름 변경 반영)
+        from models import user, board_model, key_log
+        db.create_all()
+        print(f"✅ Database ready at: {db_path}")
 
-        detector.start()
+    # Vision Engine 시작
+    state.detector = KeyboardDetector()
+    state.detector.start()
 
-        t = threading.Thread(target=save_keys_worker, daemon=True)
-        t.start()
+    # 백그라운드 Worker 시작
+    t = threading.Thread(target=save_keys_worker, args=(app,), daemon=True)
+    t.start()
 
-        print("[INFO] 서버 시작: http://127.0.0.1:5000")
-        app.run(host='0.0.0.0', port=5000, debug=False)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        detector.stop()
+    print("⚡ Server started at http://127.0.0.1:5000")
+    app.run(host='0.0.0.0', port=5000, debug=False)

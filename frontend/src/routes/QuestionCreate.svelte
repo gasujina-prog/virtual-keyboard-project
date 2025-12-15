@@ -14,14 +14,19 @@
             subject: subject,
             content: content,
         }
-        fastapi('post', url, params, 
+        fastapi('post', url, params,
             (json) => {
-                push("/")
+                push("/board") // [변경] 저장 후에도 게시판 목록으로 이동
             },
             (json_error) => {
                 error = json_error
             }
         )
+    }
+
+    // [추가] 취소 버튼 기능
+    function cancel() {
+        push('/board') // 게시판 목록으로 즉시 이동
     }
 </script>
 
@@ -31,12 +36,17 @@
     <form method="post" class="my-3">
         <div class="mb-3">
             <label for="subject">제목</label>
-            <input type="text" class="form-control" bind:value="{subject}">
+            <input type="text" class="form-control" id="subject" bind:value="{subject}">
         </div>
         <div class="mb-3">
             <label for="content">내용</label>
-            <textarea class="form-control" rows="10" bind:value="{content}"></textarea>
+            <textarea class="form-control" id="content" rows="10" bind:value="{content}"></textarea>
         </div>
-        <button class="btn btn-primary" on:click="{post_question}">저장하기</button>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" on:click="{post_question}">저장하기</button>
+
+            <button type="button" class="btn btn-secondary" on:click="{cancel}">취소</button>
+        </div>
     </form>
 </div>

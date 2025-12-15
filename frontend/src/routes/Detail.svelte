@@ -104,8 +104,11 @@
 </script>
 
 <div class="container my-3">
-    <!-- 질문 -->
-    <h2 class="border-bottom py-2">{question.subject}</h2>
+    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+        <h2 class="py-2">{question.subject}</h2>
+        <button class="btn btn-outline-secondary btn-sm" on:click="{() => push('/board')}">📄 목록으로</button>
+    </div>
+
     <div class="card my-3">
         <div class="card-body">
             <div class="card-text" style="white-space: pre-line;">{question.content}</div>
@@ -123,12 +126,12 @@
             </div>
             <div class="my-3">
                 <button class="btn btn-sm btn-outline-secondary"
-                    on:click="{vote_question(question.id)}"> 
+                    on:click="{vote_question(question.id)}">
                     추천
                     <span class="badge rounded-pill bg-success">{ question.voter.length }</span>
                 </button>
                 {#if question.user && $username === question.user.username }
-                <a use:link href="/question-modify/{question.id}" 
+                <a use:link href="/question-modify/{question.id}"
                     class="btn btn-sm btn-outline-secondary">수정</a>
                 <button class="btn btn-sm btn-outline-secondary"
                     on:click={() => delete_question(question.id)}>삭제</button>
@@ -136,10 +139,11 @@
             </div>
         </div>
     </div>
-    <button class="btn btn-secondary" on:click="{() => {
-        push('/')
-    }}">목록으로</button>
-    <!-- 답변 목록 -->
+
+    <div class="d-flex justify-content-start mb-3">
+        <button class="btn btn-secondary" on:click="{() => push('/board')}">⬅️ 목록으로 돌아가기</button>
+    </div>
+
     <h5 class="border-bottom my-3 py-2">{question.answers.length}개의 답변이 있습니다.</h5>
     {#each question.answers as answer}
     <div class="card my-3">
@@ -159,12 +163,12 @@
             </div>
             <div class="my-3">
                 <button class="btn btn-sm btn-outline-secondary"
-                    on:click="{vote_answer(answer.id)}"> 
+                    on:click="{vote_answer(answer.id)}">
                     추천
                     <span class="badge rounded-pill bg-success">{ answer.voter.length }</span>
                 </button>
                 {#if answer.user && $username === answer.user.username }
-                <a use:link href="/answer-modify/{answer.id}" 
+                <a use:link href="/answer-modify/{answer.id}"
                     class="btn btn-sm btn-outline-secondary">수정</a>
                 <button class="btn btn-sm btn-outline-secondary"
                     on:click={() => delete_answer(answer.id) }>삭제</button>
@@ -173,7 +177,6 @@
         </div>
     </div>
     {/each}
-    <!-- 답변 등록 -->
     <Error error={error} />
     <form method="post" class="my-3">
         <div class="mb-3">
