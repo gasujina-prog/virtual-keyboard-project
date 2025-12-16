@@ -258,11 +258,6 @@ while True:
 
                                 st['last_input'] = curr_time
                                 st['is_touching'] = True
-
-                                # 입력 피드백
-                                rx, ry, rw, rh = KEY_LAYOUT[detected_key]['x'], KEY_LAYOUT[detected_key]['y'], \
-                                KEY_LAYOUT[detected_key]['w'], KEY_LAYOUT[detected_key]['h']
-                                cv2.rectangle(warped_view, (rx, ry), (rx + rw, ry + rh), (0, 0, 255), -1)
                     else:
                         st['touch_start_time'] = 0
                         st['is_touching'] = False
