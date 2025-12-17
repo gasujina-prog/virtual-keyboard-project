@@ -50,7 +50,7 @@ class KeyboardDetector:
         self.frame_warp = None
         self.lock = threading.Lock()
         self.running = False
-        self.is_active = True
+        self.is_active = False
 
         self.frame_count = 0
         self.cached_matrix = None
@@ -68,8 +68,8 @@ class KeyboardDetector:
         print(f"🚀 디바이스: {self.device}")
 
         self.load_resources()
-        self.cap = cv2.VideoCapture(0)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.cap = cv2.VideoCapture()
+        # self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     def load_resources(self):
         try:
@@ -110,21 +110,51 @@ class KeyboardDetector:
         if self.cap.isOpened(): self.cap.release()
 
     def set_active(self, status):
+        """
+        카메라 토글 제어 함수
+        - status=True : 카메라 재연결 (Resume)
+        - status=False: 카메라 자원 해제 (Power Saving / Safe Reload)
+        """
         self.is_active = status
 
-    def update(self):
-        while self.running:
-            if not self.yolo_model:
-                time.sleep(1);
-                continue
+        if not status:
+            # 끄기 요청: 카메라가 켜져 있다면 전원을 끕니다.
+            if self.cap.isOpened():
+                self.cap.release()
+                print("💤 Camera released (Power Saving Mode)")
+        else:
+            # 켜기 요청: 카메라가 꺼져 있다면 다시 연결합니다.
+            if not self.cap.isOpened():
+                self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+                # 버퍼 사이즈를 1로 줄여서 지연 시간(Latency) 최소화
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                print("👀 Camera restarted")
 
+    def update(self):
+        """
+        백그라운드에서 계속 돌아가는 메인 루프
+        """
+        while self.running:
+            # 1. 비활성 상태(OFF)면 아무것도 안 하고 대기 (CPU 휴식)
             if not self.is_active:
-                self.cap.grab()
                 time.sleep(0.1)
                 continue
 
-            ret, frame = self.cap.read()
-            if not ret: continue
+            # 2. 모델 로딩 전이면 대기
+            if not self.yolo_model:
+                time.sleep(1)
+                continue
+
+            # 3. 카메라 프레임 읽기 (꺼져있으면 ret=False)
+            if self.cap.isOpened():
+                ret, frame = self.cap.read()
+            else:
+                ret = False
+
+            if not ret:
+                # 카메라가 끊겼거나 다시 켜지는 중이면 잠시 대기
+                time.sleep(0.1)
+                continue
 
             self.frame_count += 1
             run_ai = (self.frame_count % 2 == 0)
@@ -222,7 +252,10 @@ class KeyboardDetector:
                                 if trigger:
                                     if not st['is_touching'] and (curr_time - st['last_input'] > self.COOLDOWN_TIME):
                                         print(f"👉 Input({track_id}): {detected_key}")
-                                        with self.lock: self.input_queue.append(
+                                        with self.lock:
+                                            if len(self.input_queue) > 100:
+                                                self.input_queue = []
+                                            self.input_queue.append(
                                             {"key": detected_key, "time": curr_time})
                                         st['last_input'] = curr_time
                                         st['is_touching'] = True

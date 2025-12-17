@@ -20,7 +20,12 @@ app = Flask(__name__,
             static_folder='static',
             template_folder='templates')
 
-CORS(app)
+# 1. resources: 모든 경로(/*)에 대해
+# 2. origins: 모든 출처(*) 허용 (개발 단계니까 편하게)
+# 3. methods: DELETE, PUT을 포함한 모든 메서드 명시적 허용
+CORS(app,
+     resources={r"/*": {"origins": "*"}},
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 # DB 설정
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -65,4 +70,4 @@ if __name__ == "__main__":
     t.start()
 
     print("⚡ Server started at http://127.0.0.1:5000")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)

@@ -25,8 +25,8 @@
     '/answer-modify/:answer_id' : AnswerModify
   }
 
-  // [추가] 카메라 상태 변수 (기본값: 켜짐)
-  let show_camera = true
+  // [추가] 카메라 상태 변수 (기본값: 꺼짐)
+  let show_camera = false
 
   // [추가] 카메라 토글 및 서버 전송 함수
   const toggleCamera = () => {

@@ -2,6 +2,7 @@
     import { push } from 'svelte-spa-router'
     import fastapi from "../lib/api"
     import Error from "../components/Error.svelte"
+    import { username } from "../lib/store"
 
     export let params = {}
     const question_id = params.question_id
@@ -17,11 +18,11 @@
 
     function update_question(event) {
         event.preventDefault()
-        let url = "/api/question/update"
+        let url = "/api/question/modify/" + question_id
         let params = {
-            question_id: question_id,
             subject: subject,
             content: content,
+            username: $username
         }
         fastapi('put', url, params, 
             (json) => {

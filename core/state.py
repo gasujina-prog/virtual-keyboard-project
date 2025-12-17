@@ -1,7 +1,7 @@
 import queue
 
 # 전역 상태 변수 관리
-sse_queue = queue.Queue()
+sse_queue = queue.Queue(maxsize=100)
 current_user_id = None
 is_virtual_input_active = True
 

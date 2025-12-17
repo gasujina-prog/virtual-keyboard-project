@@ -1,4 +1,5 @@
 import time
+import queue
 from core import state
 from core.database import db
 from models.key_log import KeyLog
@@ -25,7 +26,16 @@ def save_keys_worker(app):
         if inputs:
             # 1. SSE 전송 (브라우저로 쏘기)
             for item in inputs:
-                state.sse_queue.put(item['key'])
+                try:
+                    # block=False: 꽉 차 있으면 기다리지 않고 바로 에러(Full) 발생시킴
+                    state.sse_queue.put(item['key'], block=False)
+                except queue.Full:
+                    # 큐가 꽉 찼다면?
+                    try:
+                        state.sse_queue.get_nowait()  # 가장 오래된 데이터 하나 버림 (배수구)
+                        state.sse_queue.put(item['key'], block=False)  # 다시 넣기 시도
+                    except:
+                        pass  # 그래도 안 되면 이번 데이터는 쿨하게 포기 (서버 다운 방지)
 
             # 2. DB 저장
             with app.app_context():
