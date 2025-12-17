@@ -29,5 +29,33 @@ pip install -r requirements.txt ※ 터미널 위치에 해당 파일이 있으�
 **CUDA 12.2 & CUDNN 8.9.7**
 GPU 환경설정입니다 
 
-## 
+## 사용설명
+2개의 모델이 필수로 필요합니다
+
+* indexFinger_best.pt
+손가락인식 모델
+```
+./modelWeight/indexFinger_best.pt
+```
+* touch_classifier_best.pth
+종이 키보드의 터치를 감지하는 모델
+```
+./modelWeight/touch_classifier_best.pth
+```
+<details>
+  <summary> 처음부터 모델을 학습하려 할 때 </summary>
+
+```
+./legacy/capture_trainSet/00_1_mediapipe_fingercapture.py
+```
+    
+</details>
+
+모델의 경로를
+```
+02_2_run_keyboard_final.py
+```
+파일에서 올바르게 수정 후 실행 시킵니다.
+
+
 
