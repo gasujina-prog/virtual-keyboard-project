@@ -69,22 +69,21 @@ def question_detail(question_id):
 @bp.route('/question/create', methods=['POST'])
 @bp.route('/v1/question/create', methods=['POST'])
 def question_create():
-    print("🚀 질문 등록 요청 들어옴!")  # 디버깅용 로그
+    # 1. 로그인 확인
+    if state.current_user_id is None:
+        return jsonify({'detail': '로그인이 필요합니다.'}), 401
 
     data = request.get_json()
     subject = data.get('subject')
     content = data.get('content')
-    username = data.get('username')
 
     if not subject or not content:
         return jsonify({'detail': '제목과 내용을 입력해주세요.'}), 400
 
-    # 사용자 조회
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        return jsonify({'detail': '존재하지 않는 사용자입니다.'}), 404
+    # 2. 작성자 할당 (프론트에서 보낸 username 무시하고, 실제 로그인한 유저 찾기)
+    user = User.query.get(state.current_user_id)
 
-    # DB 저장
+    # DB저장
     q = Question(subject=subject, content=content, create_date=datetime.now(), user=user)
     db.session.add(q)
     db.session.commit()
@@ -94,59 +93,49 @@ def question_create():
 # ------------------------------------------------------
 # 4. 질문 수정 (Update)
 # ------------------------------------------------------
-@bp.route('/question/modify/<int:question_id>', methods=['PUT'])  # 혹은 POST
+@bp.route('/question/modify/<int:question_id>', methods=['PUT'])
 @bp.route('/v1/question/modify/<int:question_id>', methods=['PUT'])
 def question_modify(question_id):
-    print(f"🛠️ 게시글 수정 요청: ID {question_id}")
+    # 1. 로그인 확인
+    if state.current_user_id is None:
+        return jsonify({'detail': '로그인이 필요합니다.'}), 401
 
     data = request.get_json()
-    username = data.get('username')
     subject = data.get('subject')
     content = data.get('content')
 
-    # 1. 게시글 찾기
     question = Question.query.get_or_404(question_id)
 
-    # 2. 권한 확인 (본인 확인)
-    # (실제 서비스에선 토큰으로 하지만, 지금은 username으로 약식 체크)
-    if question.user.username != username:
-        print(f"❌ 수정 권한 없음: 작성자({question.user.username}) != 요청자({username})")
+    # 2. 권한 확인 (작성자 ID와 현재 로그인 ID 비교)
+    if question.user.id != state.current_user_id:
         return jsonify({'detail': '수정 권한이 없습니다.'}), 403
 
-    # 3. 데이터 수정
     question.subject = subject
     question.content = content
-    # question.modify_date = datetime.now() # 모델에 컬럼이 있다면 추가
-
     db.session.commit()
-    print(f"✅ 게시글 수정 완료: {subject}")
+
     return jsonify({'message': '게시글이 수정되었습니다.'})
 
 # ------------------------------------------------------
 # 5. 질문 삭제 (Delete)
 # ------------------------------------------------------
-@bp.route('/question/delete/<int:question_id>', methods=['DELETE'])  # 혹은 POST
+@bp.route('/question/delete/<int:question_id>', methods=['DELETE'])
 @bp.route('/v1/question/delete/<int:question_id>', methods=['DELETE'])
 def question_delete(question_id):
-    print(f"🗑️ 게시글 삭제 요청: ID {question_id}")
-
-    # (삭제 요청 시에는 body에 username을 담아 보내거나, 쿼리 파라미터로 받아야 함)
-    # 여기서는 간단히 JSON으로 받는다고 가정
-    data = request.get_json() or {}
-    username = data.get('username')
+    # 1. 로그인 확인
+    if state.current_user_id is None:
+        return jsonify({'detail': '로그인이 필요합니다.'}), 401
 
     question = Question.query.get_or_404(question_id)
 
-    # 권한 확인
-    if question.user.username != username:
-        print(f"❌ 삭제 권한 없음: 작성자({question.user.username}) != 요청자({username})")
+    # 2. 권한 확인
+    if question.user.id != state.current_user_id:
         return jsonify({'detail': '삭제 권한이 없습니다.'}), 403
 
     db.session.delete(question)
     db.session.commit()
-    print(f"✅ 게시글 삭제 완료: ID {question_id}")
-    return jsonify({'message': '게시글이 삭제되었습니다.'})
 
+    return jsonify({'message': '게시글이 삭제되었습니다.'})
 
 # ------------------------------------------------------
 # 6. 질문 추천 (Vote) - [새로 추가]
@@ -181,7 +170,6 @@ def question_vote():
 
     return jsonify({'message': '추천 완료'})
 
-
 # ------------------------------------------------------
 # 7. 답변 등록 (Create Answer)
 # ------------------------------------------------------
@@ -207,9 +195,32 @@ def answer_create(question_id):
 
     return jsonify({'message': '답변 등록 성공'})
 
-
 # ------------------------------------------------------
-# 8. 답변 삭제 (Delete Answer)
+# 8. 답변 수정 (Update Answer)
+# ------------------------------------------------------
+@bp.route('/answer/update', methods=['PUT'])
+@bp.route('/v1/answer/update', methods=['PUT'])
+def answer_modify():
+    if state.current_user_id is None:
+        return jsonify({'detail': '로그인이 필요합니다.'}), 401
+
+    # 프론트엔드가 JSON body에 'answer_id'를 담아서 보냅니다.
+    data = request.get_json()
+    answer_id = data.get('answer_id')
+    content = data.get('content')
+
+    answer = Answer.query.get_or_404(answer_id)
+
+    # 권한 확인 (본인만 수정 가능)
+    if state.current_user_id != answer.user.id:
+        return jsonify({'detail': '수정 권한이 없습니다.'}), 403
+
+    answer.content = content
+    db.session.commit()
+
+    return jsonify({'message': '답변이 수정되었습니다.'})
+# ------------------------------------------------------
+# 9. 답변 삭제 (Delete Answer)
 # ------------------------------------------------------
 @bp.route('/answer/delete', methods=['DELETE'])
 @bp.route('/v1/answer/delete', methods=['DELETE'])
@@ -232,7 +243,7 @@ def answer_delete():
 
 
 # ------------------------------------------------------
-# 9. 답변 추천 (Vote Answer)
+# 10. 답변 추천 (Vote Answer)
 # ------------------------------------------------------
 @bp.route('/answer/vote', methods=['POST'])
 @bp.route('/v1/answer/vote', methods=['POST'])
@@ -258,3 +269,19 @@ def answer_vote():
     db.session.commit()
 
     return jsonify({'message': '추천 완료'})
+
+# ------------------------------------------------------
+# [추가됨] 11. 답변 상세 조회 (Detail Answer)
+# 프론트엔드 AnswerModify.svelte가 호출하는 API
+# ------------------------------------------------------
+@bp.route('/answer/detail/<int:answer_id>', methods=['GET'])
+@bp.route('/v1/answer/detail/<int:answer_id>', methods=['GET'])
+def answer_detail(answer_id):
+    answer = Answer.query.get_or_404(answer_id)
+    return jsonify({
+        'id': answer.id,
+        'question_id': answer.question_id,
+        'content': answer.content,
+        'create_date': answer.create_date.isoformat(),
+        'user': {'username': answer.user.username} if answer.user else None
+    })

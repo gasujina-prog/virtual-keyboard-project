@@ -57,7 +57,7 @@
             let url = "/api/question/delete/" + _question_id
             let params = { username: $username }
             fastapi('delete', url, params,
-                (json) => { push('/') },
+                (json) => { push('/board') },
                 (err_json) => { error = err_json; alert(err_json.detail) }
             )
         }
