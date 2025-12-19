@@ -189,7 +189,7 @@
     .chat-container {
         max-width: 800px;
         margin: 0 auto;
-        background-color: #b2c7d9;
+        background-color: #1f1e33;
         min-height: 80vh;
         display: flex;
         flex-direction: column;

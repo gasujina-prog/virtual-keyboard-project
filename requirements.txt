@@ -6,18 +6,21 @@ torch==2.5.1+cu121
 torchvision==0.20.1+cu121
 torchaudio==2.5.1+cu121
 
+# [Prevent Numpy 2.0 Compatibility Issues]
 numpy<2.0.0
 
-# [AI & Computer Vision - Latest]
+# [AI & Computer Vision]
 ultralytics
 opencv-python
-mediapipe
-pyautogui
+Pillow
+# mediapipe    # Not used in current YOLO+Aruco logic
+# pyautogui    # Not used in current web-based logic
 
-# [Web Framework - Latest]
+# [Web Framework]
 Flask
 Flask-SQLAlchemy
+Flask-Cors
 
-# [System & Utilities - Latest]
-pynput
+# [System & Utilities]
 requests
+# pynput       # Not used in current web-based logic

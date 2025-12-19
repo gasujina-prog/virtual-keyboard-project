@@ -32,7 +32,7 @@ class TouchClassifier(nn.Module):
 
 class KeyboardDetector:
     def __init__(self):
-        # [수정] services 폴더 기준 상위 폴더(루트)를 찾기 위한 경로 설정
+        # 경로 설정
         CURRENT_FILE_DIR = os.path.dirname(os.path.abspath(__file__))
         PROJECT_ROOT = os.path.dirname(CURRENT_FILE_DIR)
 
@@ -42,9 +42,11 @@ class KeyboardDetector:
 
         self.WARP_W = 1200
         self.WARP_H = 620
-        self.COOLDOWN_TIME = 0.1
-        self.TOUCH_DWELL_TIME = 0.05
-        self.AI_THRESHOLD = 0.1
+
+        # [수정 1] 로컬 버전과 동일하게 쿨다운 및 지속 시간 설정
+        self.COOLDOWN_TIME = 0.2  # 입력 후 대기 시간 (0.1 -> 0.2로 증가하여 중복 입력 방지)
+        self.TOUCH_DWELL_TIME = 0.1  # 터치 유지 시간 (0.05 -> 0.1로 증가하여 신중하게)
+        self.AI_THRESHOLD = 0.5  # AI 확신도 (0.1 -> 0.5로 대폭 상향, 확실할 때만!)
 
         self.frame_cam = None
         self.frame_warp = None
@@ -69,7 +71,6 @@ class KeyboardDetector:
 
         self.load_resources()
         self.cap = cv2.VideoCapture()
-        # self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     def load_resources(self):
         try:
@@ -110,49 +111,33 @@ class KeyboardDetector:
         if self.cap.isOpened(): self.cap.release()
 
     def set_active(self, status):
-        """
-        카메라 토글 제어 함수
-        - status=True : 카메라 재연결 (Resume)
-        - status=False: 카메라 자원 해제 (Power Saving / Safe Reload)
-        """
         self.is_active = status
-
         if not status:
-            # 끄기 요청: 카메라가 켜져 있다면 전원을 끕니다.
             if self.cap.isOpened():
                 self.cap.release()
                 print("💤 Camera released (Power Saving Mode)")
         else:
-            # 켜기 요청: 카메라가 꺼져 있다면 다시 연결합니다.
             if not self.cap.isOpened():
                 self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-                # 버퍼 사이즈를 1로 줄여서 지연 시간(Latency) 최소화
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 print("👀 Camera restarted")
 
     def update(self):
-        """
-        백그라운드에서 계속 돌아가는 메인 루프
-        """
         while self.running:
-            # 1. 비활성 상태(OFF)면 아무것도 안 하고 대기 (CPU 휴식)
             if not self.is_active:
                 time.sleep(0.1)
                 continue
 
-            # 2. 모델 로딩 전이면 대기
             if not self.yolo_model:
                 time.sleep(1)
                 continue
 
-            # 3. 카메라 프레임 읽기 (꺼져있으면 ret=False)
             if self.cap.isOpened():
                 ret, frame = self.cap.read()
             else:
                 ret = False
 
             if not ret:
-                # 카메라가 끊겼거나 다시 켜지는 중이면 잠시 대기
                 time.sleep(0.1)
                 continue
 
@@ -206,23 +191,30 @@ class KeyboardDetector:
 
                         for box, track_id in zip(boxes, track_ids):
                             current_ids.add(track_id)
+                            # [수정 2] 상태값 초기화 시 'touch_start_time' 명확히 관리
                             if track_id not in self.fingers_state:
-                                self.fingers_state[track_id] = {'last_input': 0, 'is_touching': False,
-                                                                'touch_start_time': 0, 'hover_key': None,
-                                                                'hover_start_time': 0}
+                                self.fingers_state[track_id] = {
+                                    'last_input': 0,
+                                    'is_touching': False,
+                                    'touch_start_time': 0
+                                }
                             st = self.fingers_state[track_id]
+
                             x1, y1, x2, y2 = map(int, box)
                             y1, y2 = max(0, y1), min(frame.shape[0], y2)
                             x1, x2 = max(0, x1), min(frame.shape[1], x2)
 
                             finger_img = frame[y1:y2, x1:x2]
-                            touch_score = 0.0
+
+                            # [수정 3] AI 점수 계산 및 0.5 기준 적용
+                            is_touch_visual = False
                             if finger_img.size > 0 and self.touch_model:
                                 pil_img = Image.fromarray(cv2.cvtColor(finger_img, cv2.COLOR_BGR2RGB))
                                 input_tensor = self.transform(pil_img).unsqueeze(0).to(self.device)
                                 with torch.no_grad():
                                     output = self.touch_model(input_tensor)
-                                    touch_score = torch.softmax(output, dim=1)[0][1].item()
+                                    # 0.5(50%) 이상일 때만 True
+                                    is_touch_visual = torch.softmax(output, dim=1)[0][1].item() > self.AI_THRESHOLD
 
                             detected_key = None
                             if matrix is not None:
@@ -238,38 +230,37 @@ class KeyboardDetector:
                                             detected_key = key_name
                                             break
 
-                            if detected_key != st['hover_key']:
-                                st['hover_key'] = detected_key
-                                st['hover_start_time'] = curr_time
+                            # [수정 4] 로컬 버전과 동일한 AND 조건 (키 있음 + AI 확신 + 시간 유지)
+                            if detected_key and is_touch_visual:
+                                if st['touch_start_time'] == 0:
+                                    st['touch_start_time'] = curr_time
 
-                            trigger = False
-                            if detected_key:
-                                if touch_score > self.AI_THRESHOLD:
-                                    trigger = True
-                                elif (curr_time - st['hover_start_time']) > self.TOUCH_DWELL_TIME:
-                                    trigger = True
+                                duration = curr_time - st['touch_start_time']
 
-                                if trigger:
+                                if duration >= self.TOUCH_DWELL_TIME:
+                                    # 입력 트리거
                                     if not st['is_touching'] and (curr_time - st['last_input'] > self.COOLDOWN_TIME):
                                         print(f"👉 Input({track_id}): {detected_key}")
                                         with self.lock:
                                             if len(self.input_queue) > 100:
                                                 self.input_queue = []
-                                            self.input_queue.append(
-                                            {"key": detected_key, "time": curr_time})
+                                            self.input_queue.append({"key": detected_key, "time": curr_time})
                                         st['last_input'] = curr_time
                                         st['is_touching'] = True
                             else:
+                                # 키를 벗어나거나 손을 떼면 타이머 초기화
+                                st['touch_start_time'] = 0
                                 st['is_touching'] = False
-                                st['hover_start_time'] = 0
 
+                            # [수정 5] 시각화 로직도 AI 판단(is_touch_visual) 기준
                             self.cached_fingers_visual.append({
                                 "box": (x1, y1, x2, y2),
-                                "text": f"{track_id}:{'HIT' if st['is_touching'] else 'HOV'}",
-                                "color": (0, 255, 255) if st['is_touching'] else (0, 255, 0),
+                                "text": f"{track_id}:{'TOUCH' if is_touch_visual else 'HOVER'}",
+                                "color": (0, 255, 255) if is_touch_visual else (0, 255, 0),
                                 "key_pos": (tx, ty) if matrix is not None and 'tx' in locals() else None,
                                 "detected_key": detected_key
                             })
+
                     expired = [k for k in self.fingers_state if k not in current_ids]
                     for k in expired: del self.fingers_state[k]
                 except:
