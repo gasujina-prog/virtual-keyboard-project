@@ -120,6 +120,10 @@ class KeyboardDetector:
             if not self.cap.isOpened():
                 self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+                self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # (0 또는 0.25가 수동 모드)
+                self.cap.set(cv2.CAP_PROP_EXPOSURE, -6.0)  # (숫자가 클수록 어두워짐, -4 ~ -6 추천)
                 print("👀 Camera restarted")
 
     def update(self):

@@ -110,7 +110,7 @@
                         <button class="btn btn-success flex-grow-1" on:click={() => push('/game')}>
                             🎮 게임 시작
                         </button>
-                        <button class="btn btn-warning text-white flex-grow-1" on:click={() => alert('마이페이지 기능은 준비 중입니다!')}>
+                        <button class="btn btn-success text-white flex-grow-1" on:click={() => push('/mypage')}>
                             👤 마이페이지
                         </button>
                     </div>

@@ -78,6 +78,10 @@ def stream():
                 # timeout을 줘서 무한 대기 방지 (서버 종료 시 빠져나오기 위함)
                 key = state.sse_queue.get(timeout=1.0)
                 yield f"data: {key}\n\n"
+
+            except GeneratorExit:
+                print("클라이언트 연결 종료")
+                break
             except:
                 # 큐가 비어있으면(timeout) 그냥 루프 다시 돌기
                 continue

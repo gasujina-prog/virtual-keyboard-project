@@ -12,6 +12,7 @@
   import QuestionModify from "./routes/QuestionModify.svelte"
   import AnswerModify from "./routes/AnswerModify.svelte"
   import Game from "./routes/Game.svelte"
+  import Mypage from "./routes/Mypage.svelte"
 
   const routes = {
     '/': Home,
@@ -22,7 +23,8 @@
     '/user-login' : UserLogin,
     '/question-modify/:question_id': QuestionModify,
     '/answer-modify/:answer_id' : AnswerModify,
-    '/game': Game
+    '/game': Game,
+    '/mypage': Mypage
   }
 </script>
 
